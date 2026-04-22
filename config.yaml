@@ -1,0 +1,17 @@
+agent:
+  model: claude-opus-4-7
+  max_tokens: 2048
+
+guardrails:
+  max_restarts_per_hour: 3
+  max_replicas: 10
+  rollback_window_minutes: 60
+  max_memory_multiplier: 2.0
+  cooldown_seconds: 60
+  blast_radius_threshold: 0.5
+  max_actions_per_hour: 10
+
+openclaw:
+  channel: "#oncall-sre"
+  webhook_url: ""
+  paging_enabled: false
