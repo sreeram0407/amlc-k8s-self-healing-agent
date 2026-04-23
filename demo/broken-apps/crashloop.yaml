@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crashloop-demo
+  namespace: default
+  labels:
+    app: crashloop-demo
+    demo: broken
+    scenario: crashloopbackoff
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: crashloop-demo
+  template:
+    metadata:
+      labels:
+        app: crashloop-demo
+        demo: broken
+        scenario: crashloopbackoff
+    spec:
+      terminationGracePeriodSeconds: 5
+      containers:
+      - name: app
+        image: busybox:1.36
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            echo "FATAL: required env var DB_URL is not set"
+            echo "Refusing to start."
+            exit 1
+        resources:
+          requests:
+            memory: "16Mi"
+            cpu: "10m"
+          limits:
+            memory: "32Mi"
+            cpu: "100m"

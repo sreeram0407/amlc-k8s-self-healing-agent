@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: imagepull-demo
+  namespace: default
+  labels:
+    app: imagepull-demo
+    demo: broken
+    scenario: imagepullbackoff
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: imagepull-demo
+  template:
+    metadata:
+      labels:
+        app: imagepull-demo
+        demo: broken
+        scenario: imagepullbackoff
+    spec:
+      terminationGracePeriodSeconds: 5
+      containers:
+      - name: app
+        image: nginx:nonexistent-tag-12345
+        imagePullPolicy: Always
+        resources:
+          requests:
+            memory: "16Mi"
+            cpu: "10m"
+          limits:
+            memory: "64Mi"
+            cpu: "100m"
