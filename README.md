@@ -7,11 +7,11 @@ An autonomous Kubernetes self-healing agent that monitors cluster events, diagno
 ```
 K8s Cluster (Mock)
        │
-       ▼
-  Event Watcher ──► AI Agent (Claude API) ──► MCP Tools ──► Auto-fix
+       v
+  Event Watcher ──> AI Agent (Claude API) ──> MCP Tools ──> Auto-fix
                          │                                     OR
                          │                               Escalate (OpenClaw)
-                         ▼
+                         v
                     Audit Log (SQLite)
 ```
 
@@ -21,7 +21,7 @@ K8s Cluster (Mock)
 |--------|---------|
 | `mock_cluster.py` | In-memory K8s cluster with pods, deployments, events, and failure injection |
 | `mcp_server.py` | Tool definitions and handler — bridges Claude tool calls to the cluster |
-| `agent.py` | Core agentic loop: investigate → diagnose → remediate or escalate |
+| `agent.py` | Core agentic loop: investigate -> diagnose -> remediate or escalate |
 | `guardrails.py` | Safety checks (rate limits, blast radius, memory caps) before every action |
 | `openclaw_integration.py` | Alert formatting and human-in-the-loop escalation |
 | `audit.py` | SQLite audit trail of every agent decision |

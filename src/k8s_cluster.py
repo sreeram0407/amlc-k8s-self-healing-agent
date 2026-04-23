@@ -254,7 +254,7 @@ class KubernetesCluster:
         return None
 
     def _deployment_to_dict(self, d: Any) -> dict[str, Any]:
-        """Real deployment → MockCluster-shaped dict with revision_history."""
+        """Real deployment -> MockCluster-shaped dict with revision_history."""
         container = d.spec.template.spec.containers[0] if d.spec.template.spec.containers else None
         image = container.image if container else ""
 
@@ -404,9 +404,9 @@ class KubernetesCluster:
             self.apps.patch_namespaced_deployment(deployment, namespace, body=patch)
             parts = []
             if memory:
-                parts.append(f"memory → {memory}")
+                parts.append(f"memory -> {memory}")
             if cpu:
-                parts.append(f"cpu → {cpu}")
+                parts.append(f"cpu -> {cpu}")
             return f"Deployment '{deployment}' patched: {', '.join(parts)} (triggers pod recreation)"
         except ApiException as e:
             return f"Error: {e.reason} (status {e.status})"

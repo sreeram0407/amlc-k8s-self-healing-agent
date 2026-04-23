@@ -1,7 +1,7 @@
 """Offline mock of the Anthropic client.
 
 Implements just enough of the `client.messages.create(...)` surface that
-`src.agent.Agent` uses, and drives a deterministic investigate → decide loop
+`src.agent.Agent` uses, and drives a deterministic investigate -> decide loop
 that roughly follows the system-prompt playbook. Activated automatically when
 `ANTHROPIC_API_KEY` is not set, so the demo runs end-to-end without a key.
 """
@@ -142,7 +142,7 @@ class _MessagesAPI:
         pod_info = results_by_name.get("get_pod_status")
         deployment = pod_info.get("deployment") if isinstance(pod_info, dict) else None
 
-        # 1. Handle guardrail block → escalate
+        # 1. Handle guardrail block -> escalate
         if last_blocked and "alert_human" not in called:
             return self._tu(
                 "alert_human",
@@ -217,7 +217,7 @@ class _MessagesAPI:
                 f"Pod in Error state. Attempting a restart on {pod_name}.",
             )
 
-        # Fallback → escalate
+        # Fallback -> escalate
         return self._tu(
             "alert_human",
             {

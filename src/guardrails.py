@@ -30,7 +30,7 @@ class Guardrails:
     def __init__(self, config: GuardrailsConfig, cluster: Any = None) -> None:
         self.config = config
         self.cluster = cluster
-        # Track action history: key → list of timestamps
+        # Track action history: key -> list of timestamps
         self._action_history: dict[str, list[datetime]] = defaultdict(list)
         # Track original memory limits per pod
         self._original_memory: dict[str, str] = {}

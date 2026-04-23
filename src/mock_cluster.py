@@ -434,11 +434,11 @@ class MockCluster:
         if memory:
             old = pod.memory_limit
             pod.memory_limit = memory
-            changes.append(f"memory {old} → {memory}")
+            changes.append(f"memory {old} -> {memory}")
         if cpu:
             old = pod.cpu_limit
             pod.cpu_limit = cpu
-            changes.append(f"cpu {old} → {cpu}")
+            changes.append(f"cpu {old} -> {cpu}")
 
         if not changes:
             return "No changes specified"
@@ -537,7 +537,7 @@ class MockCluster:
         self._add_event(
             "Normal",
             "DeploymentUpdated",
-            f"Deployment {deployment_name} updated: {old_image} → {new_image}",
+            f"Deployment {deployment_name} updated: {old_image} -> {new_image}",
             deployment_name,
             dep.namespace,
         )
