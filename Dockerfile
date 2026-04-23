@@ -14,6 +14,7 @@ RUN pip install -r requirements.txt
 
 # Copy application code
 COPY src/ ./src/
+COPY skills/ ./skills/
 COPY poller.py ./
 
 # Non-root user (we don't need root in the pod)
