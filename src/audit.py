@@ -22,9 +22,16 @@ CREATE TABLE IF NOT EXISTS audit_log (
     guardrail_check TEXT,
     outcome TEXT,
     llm_reasoning TEXT,
-    tokens_used INTEGER
+    tokens_used INTEGER,
+    models_used TEXT
 );
 """
+
+# Columns added after initial release — add via ALTER TABLE so existing DBs
+# on the persistent volume upgrade cleanly without needing a migration.
+_ADDITIVE_COLUMNS = (
+    ("models_used", "TEXT"),
+)
 
 
 class AuditLogger:
@@ -32,6 +39,16 @@ class AuditLogger:
         self._conn = sqlite3.connect(db_path)
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(_SCHEMA)
+        # Upgrade existing DBs (from the persistent volume) that predate
+        # newer columns — SQLite can't ADD COLUMN IF NOT EXISTS, so we check
+        # the current column set first.
+        existing = {row[1] for row in self._conn.execute(
+            "PRAGMA table_info(audit_log)"
+        ).fetchall()}
+        for col, typ in _ADDITIVE_COLUMNS:
+            if col not in existing:
+                self._conn.execute(f"ALTER TABLE audit_log ADD COLUMN {col} {typ}")
+        self._conn.commit()
 
     def log(self, entry: dict[str, Any]) -> int:
         ts = entry.get("timestamp") or datetime.now(timezone.utc).isoformat()
@@ -44,9 +61,9 @@ class AuditLogger:
             INSERT INTO audit_log (
                 timestamp, event_id, pod_name, namespace, event_type,
                 diagnosis, action_taken, action_params, guardrail_check,
-                outcome, llm_reasoning, tokens_used
+                outcome, llm_reasoning, tokens_used, models_used
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 ts,
@@ -61,6 +78,7 @@ class AuditLogger:
                 entry.get("outcome", ""),
                 entry.get("llm_reasoning", ""),
                 int(entry.get("tokens_used") or 0),
+                entry.get("models_used", ""),
             ),
         )
         self._conn.commit()
