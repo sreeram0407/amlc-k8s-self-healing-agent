@@ -12,4 +12,6 @@ env/
 .claude/
 
 .DS_Store
-*.log
+*.logk8s-healer/
+k8s-healer.tar.gz
+__pycache__/

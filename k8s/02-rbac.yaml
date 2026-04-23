@@ -1,0 +1,26 @@
+# Reuses S1's openclaw-healer ClusterRole (already has everything we need).
+# Just adds a binding for our new SA.
+#
+# S1's role grants:
+#   pods, pods/log: get, list, watch, delete
+#   deployments, replicasets: get, list, watch, patch, update
+#   events: get, list, watch, delete
+#   nodes: get, list, watch, delete
+#   configmaps: get, list, patch
+#
+# That's sufficient for: restart_pod (delete), rollback_deployment (patch),
+# scale_deployment (patch), update_resource_limits (patch deployment),
+# investigation tools (get/list/watch pods, logs, events, deployments, RS).
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: healer-sa-binding
+subjects:
+- kind: ServiceAccount
+  name: healer-sa
+  namespace: k8s-healer
+roleRef:
+  kind: ClusterRole
+  name: openclaw-healer   # the one S1 already created
+  apiGroup: rbac.authorization.k8s.io

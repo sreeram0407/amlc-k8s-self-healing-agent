@@ -1,0 +1,73 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: healer-poller
+  namespace: k8s-healer
+spec:
+  schedule: "*/5 * * * *"          # every 5 minutes
+  concurrencyPolicy: Forbid        # don't start a new run if the last one is still going
+  startingDeadlineSeconds: 300     # skip runs missed by >5min (e.g. cluster down)
+  successfulJobsHistoryLimit: 3    # keep last 3 successful runs for debugging
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1              # retry once on failure, then give up this run
+      activeDeadlineSeconds: 600   # kill if a single run hangs >10min
+      ttlSecondsAfterFinished: 3600  # GC job pods after 1h
+      template:
+        spec:
+          serviceAccountName: healer-sa
+          restartPolicy: OnFailure
+          containers:
+          - name: poller
+            # IMPORTANT: replace with your pushed image.
+            # Default here is the GCR path matching the build command below.
+            image: us-central1-docker.pkg.dev/openclaw-k8s-healer/healer/healer:latest
+            imagePullPolicy: Always
+            env:
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: healer-secrets
+                  key: ANTHROPIC_API_KEY
+            - name: SLACK_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: healer-secrets
+                  key: SLACK_BOT_TOKEN
+            - name: CONFIG_PATH
+              value: /etc/healer/config.yaml
+            - name: AUDIT_DB_PATH
+              value: /data/audit.db
+            - name: WATCH_NAMESPACES
+              value: "default"   # comma-separated; leave empty to scan all
+            - name: MAX_EVENTS_PER_RUN
+              value: "5"
+            volumeMounts:
+            - name: config
+              mountPath: /etc/healer
+            - name: audit
+              mountPath: /data
+            - name: secrets-store
+              mountPath: /mnt/secrets-store
+              readOnly: true
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+          volumes:
+          - name: config
+            configMap:
+              name: healer-config
+          - name: audit
+            persistentVolumeClaim:
+              claimName: healer-audit
+          - name: secrets-store
+            csi:
+              driver: secrets-store.csi.k8s.io
+              readOnly: true
+              volumeAttributes:
+                secretProviderClass: "healer-secrets"

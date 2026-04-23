@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: k8s-healer
+---
+# K8s SA — annotated to impersonate the existing openclaw-agent GCP SA
+# (which already has secretmanager.secretAccessor and the WI binding).
+# We'll update the WI binding to include this new K8s SA below.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: healer-sa
+  namespace: k8s-healer
+  annotations:
+    iam.gke.io/gcp-service-account: openclaw-agent@openclaw-k8s-healer.iam.gserviceaccount.com

@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: healer-config
+  namespace: k8s-healer
+data:
+  config.yaml: |
+    agent:
+      model: claude-opus-4-7
+      max_tokens: 2048
+
+    guardrails:
+      max_restarts_per_hour: 3
+      max_replicas: 10
+      rollback_window_minutes: 60
+      max_memory_multiplier: 2.0
+      cooldown_seconds: 60
+      blast_radius_threshold: 0.5
+      max_actions_per_hour: 10
+
+    openclaw:
+      channel: "#k8s-alerts"
+      webhook_url: ""
+      paging_enabled: false
+---
+# Persistent SQLite audit log — shared across CronJob runs
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: healer-audit
+  namespace: k8s-healer
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: standard-rwo
+  resources:
+    requests:
+      storage: 1Gi
