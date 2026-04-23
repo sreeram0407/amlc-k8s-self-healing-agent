@@ -9,7 +9,10 @@ from typing import Any
 
 @dataclass
 class AgentConfig:
-    model: str = "claude-opus-4-7"
+    # Triage model — cheap, fast; used while investigating before any action is proposed.
+    model: str = "claude-haiku-4-5-20251001"
+    # Incident model — stronger reasoning; used once remediation or escalation is in play.
+    incident_model: str = "claude-sonnet-4-6"
     max_tokens: int = 2048
 
 

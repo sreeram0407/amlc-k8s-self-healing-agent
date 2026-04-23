@@ -11,12 +11,12 @@ Invoked by a Kubernetes CronJob every 5 min. Each invocation:
 No long-running loop — the CronJob schedule is the loop.
 
 Env vars:
-  ANTHROPIC_API_KEY     required (or DEMO_MOCK=1 for offline testing)
-  SLACK_BOT_TOKEN       required for real alerts
-  WATCH_NAMESPACES      comma-separated list (default: all non-system)
-  AUDIT_DB_PATH         SQLite path (default: /data/audit.db)
-  CONFIG_PATH           YAML config path (default: /etc/healer/config.yaml)
-  MAX_EVENTS_PER_RUN    cap on how many pods to handle per invocation (default: 5)
+  ANTHROPIC_API_KEY required (or DEMO_MOCK=1 for offline testing)
+  SLACK_BOT_TOKEN required for real alerts
+  WATCH_NAMESPACES comma-separated list (default: all non-system)
+  AUDIT_DB_PATH SQLite path (default: /data/audit.db)
+  CONFIG_PATH YAML config path (default: /etc/healer/config.yaml)
+  MAX_EVENTS_PER_RUN cap on how many pods to handle per invocation (default: 5)
 """
 
 from __future__ import annotations
@@ -52,28 +52,29 @@ def _event_from_pod(pod: dict) -> dict:
 
 def main() -> int:
     print(f"\n{'═' * 60}")
-    print(f"🔁 Self-healing poller run @ {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}")
+    print(f" Self-healing poller run @ {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}")
     print(f"{'═' * 60}\n")
 
     # --- Load config ---
     config_path = os.environ.get("CONFIG_PATH", "/etc/healer/config.yaml")
     cfg = load_config(config_path)
-    print(f"   • Model: {cfg.agent.model}")
-    print(f"   • Alert channel: {cfg.openclaw.channel}")
+    print(f" • Triage model: {cfg.agent.model}")
+    print(f" • Incident model: {cfg.agent.incident_model}")
+    print(f" • Alert channel: {cfg.openclaw.channel}")
 
     # --- Determine watched namespaces ---
     watch_raw = os.environ.get("WATCH_NAMESPACES", "").strip()
     watch_namespaces = [n.strip() for n in watch_raw.split(",") if n.strip()] or None
     if watch_namespaces:
-        print(f"   • Watching namespaces: {watch_namespaces}")
+        print(f" • Watching namespaces: {watch_namespaces}")
     else:
-        print(f"   • Watching all non-system namespaces")
+        print(f" • Watching all non-system namespaces")
 
     # --- Wire up the real cluster + integrations ---
     try:
         cluster = KubernetesCluster(watch_namespaces=watch_namespaces)
     except Exception as e:
-        print(f"   ❌ Failed to connect to cluster: {e}")
+        print(f" [fail] Failed to connect to cluster: {e}")
         traceback.print_exc()
         return 1
 
@@ -87,15 +88,15 @@ def main() -> int:
     try:
         unhealthy = cluster.get_unhealthy_pods()
     except Exception as e:
-        print(f"   ❌ Failed to list unhealthy pods: {e}")
+        print(f" [fail] Failed to list unhealthy pods: {e}")
         return 1
 
     if not unhealthy:
-        print("   ✅ No unhealthy pods detected — nothing to do.\n")
+        print(" [ok] No unhealthy pods detected — nothing to do.\n")
         return 0
 
     max_events = int(os.environ.get("MAX_EVENTS_PER_RUN", "5"))
-    print(f"   ⚠️  Found {len(unhealthy)} unhealthy pod(s); "
+    print(f" [warn] Found {len(unhealthy)} unhealthy pod(s); "
           f"handling up to {max_events} this run\n")
 
     # --- Process each one ---
@@ -106,11 +107,11 @@ def main() -> int:
             agent.handle_event(event)
             handled += 1
         except Exception as e:
-            print(f"   ❌ Agent error on {pod.get('name')}: {e}")
+            print(f" [fail] Agent error on {pod.get('name')}: {e}")
             traceback.print_exc()
 
     print(f"\n{'═' * 60}")
-    print(f"✅ Poller done — handled {handled}/{len(unhealthy[:max_events])} events")
+    print(f"[ok] Poller done — handled {handled}/{len(unhealthy[:max_events])} events")
     print(f"{'═' * 60}\n")
 
     # --- Recent audit summary ---
@@ -120,7 +121,7 @@ def main() -> int:
         pod_name = entry.get("pod_name", "")
         action = entry.get("action_taken", "")
         outcome = entry.get("outcome", "")
-        print(f"   {ts}  {pod_name:30s}  {action:25s}  {outcome}")
+        print(f" {ts} {pod_name:30s} {action:25s} {outcome}")
 
     audit.close()
     return 0
