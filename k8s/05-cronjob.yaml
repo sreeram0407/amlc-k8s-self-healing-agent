@@ -4,43 +4,41 @@ metadata:
   name: healer-poller
   namespace: k8s-healer
 spec:
-  schedule: "*/5 * * * *"          # every 5 minutes
-  concurrencyPolicy: Forbid        # don't start a new run if the last one is still going
-  startingDeadlineSeconds: 300     # skip runs missed by >5min (e.g. cluster down)
-  successfulJobsHistoryLimit: 3    # keep last 3 successful runs for debugging
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
-      backoffLimit: 1              # retry once on failure, then give up this run
-      activeDeadlineSeconds: 600   # kill if a single run hangs >10min
-      ttlSecondsAfterFinished: 3600  # GC job pods after 1h
+      backoffLimit: 0
+      activeDeadlineSeconds: 600
+      ttlSecondsAfterFinished: 3600
       template:
         spec:
           serviceAccountName: healer-sa
-          restartPolicy: OnFailure
+          restartPolicy: Never
+          securityContext:
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
           containers:
           - name: poller
-            # IMPORTANT: replace with your pushed image.
-            # Default here is the GCR path matching the build command below.
             image: us-central1-docker.pkg.dev/openclaw-k8s-healer/healer/healer:latest
             imagePullPolicy: Always
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                export ANTHROPIC_API_KEY="$(cat /mnt/secrets-store/anthropic-api-key)"
+                export SLACK_BOT_TOKEN="$(cat /mnt/secrets-store/slack-bot-token)"
+                exec python /app/poller.py
             env:
-            - name: ANTHROPIC_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: healer-secrets
-                  key: ANTHROPIC_API_KEY
-            - name: SLACK_BOT_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: healer-secrets
-                  key: SLACK_BOT_TOKEN
             - name: CONFIG_PATH
               value: /etc/healer/config.yaml
             - name: AUDIT_DB_PATH
               value: /data/audit.db
             - name: WATCH_NAMESPACES
-              value: "default"   # comma-separated; leave empty to scan all
+              value: "default"
             - name: MAX_EVENTS_PER_RUN
               value: "5"
             volumeMounts:
