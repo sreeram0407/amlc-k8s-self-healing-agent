@@ -152,7 +152,7 @@ Wait 5 min (or trigger manually again). You should see:
 
 **Anthropic API errors:**
 - If the spend cap ($20 from S4's plan) is hit, calls will fail
-- Check console.anthropic.com → Usage
+- Check console.anthropic.com -> Usage
 
 **Pods not detected as unhealthy:**
 - Check `WATCH_NAMESPACES` env var in the CronJob — defaults to `default` only

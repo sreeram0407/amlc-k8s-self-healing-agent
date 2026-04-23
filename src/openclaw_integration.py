@@ -12,7 +12,7 @@ from typing import Any
 from .config import OpenClawConfig
 
 
-_SEV_ICON = {"critical": "🚨", "warning": "⚠️", "info": "ℹ️"}
+_SEV_ICON = {"critical": "[CRIT]", "warning": "[WARN]", "info": "[INFO]"}
 
 
 class OpenClawIntegration:
@@ -37,14 +37,14 @@ class OpenClawIntegration:
     def _emit(self, alert: dict[str, Any]) -> None:
         icon = _SEV_ICON.get(alert["severity"], "•")
         bar = "─" * 58
-        print(f"\n   ┌{bar}┐")
-        print(f"   │ {icon}  OpenClaw alert → {self.config.channel:<30s}│")
-        print(f"   ├{bar}┤")
-        print(f"   │ severity : {alert['severity']:<45s}│")
-        print(f"   │ summary  : {_trunc(alert['summary'], 45):<45s}│")
-        print(f"   │ details  : {_trunc(alert['details'], 45):<45s}│")
-        print(f"   │ action   : {_trunc(alert['recommended_action'], 45):<45s}│")
-        print(f"   └{bar}┘")
+        print(f"\n ┌{bar}┐")
+        print(f" │ {icon} OpenClaw alert -> {self.config.channel:<30s}│")
+        print(f" ├{bar}┤")
+        print(f" │ severity : {alert['severity']:<45s}│")
+        print(f" │ summary : {_trunc(alert['summary'], 45):<45s}│")
+        print(f" │ details : {_trunc(alert['details'], 45):<45s}│")
+        print(f" │ action : {_trunc(alert['recommended_action'], 45):<45s}│")
+        print(f" └{bar}┘")
 
 
 def _trunc(s: str, n: int) -> str:

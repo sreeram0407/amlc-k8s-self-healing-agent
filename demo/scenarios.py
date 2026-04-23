@@ -19,7 +19,7 @@ def _first_pod(cluster: MockCluster, deployment: str) -> Any:
 
 
 def scenario_simple_recovery(cluster: MockCluster) -> dict[str, Any]:
-    """CrashLoopBackOff on a pod with no recent deploy → restart."""
+    """CrashLoopBackOff on a pod with no recent deploy -> restart."""
     pod = _first_pod(cluster, "notification-service")
     if pod is None:
         return {"error": "notification-service pod not found"}
@@ -99,7 +99,7 @@ def scenario_guardrail_escalation(cluster: MockCluster) -> dict[str, Any]:
 
 
 def scenario_systemic_failure(cluster: MockCluster) -> dict[str, Any]:
-    """>50% of production pods unhealthy → blast-radius guardrail triggers escalation."""
+    """>50% of production pods unhealthy -> blast-radius guardrail triggers escalation."""
     prod_pods = [p for p in cluster.pods.values() if p.namespace == "production"]
     target_unhealthy = max(1, int(len(prod_pods) * 0.6))
     healthy = [p for p in prod_pods if p.status == PodStatus.RUNNING]

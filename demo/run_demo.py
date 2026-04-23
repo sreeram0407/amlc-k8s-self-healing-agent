@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Interactive demo of the K8s Self-Healing Agent.
 
-Run:  python -m demo.run_demo          (from project root)
+Run: python -m demo.run_demo (from project root)
   or: python demo/run_demo.py
 """
 
@@ -31,7 +31,7 @@ from demo.scenarios import (
 
 BANNER = r"""
 ╔═══════════════════════════════════════════════════════════╗
-║        K8s Self-Healing Agent — Interactive Demo          ║
+║ K8s Self-Healing Agent — Interactive Demo ║
 ╚═══════════════════════════════════════════════════════════╝
 """
 
@@ -40,34 +40,34 @@ DIVIDER = "─" * 60
 
 def _print_cluster_status(cluster: MockCluster) -> None:
     print(f"\n{DIVIDER}")
-    print("📊 Cluster Status")
+    print(" Cluster Status")
     print(DIVIDER)
     for ns in ("production", "staging"):
         health = cluster.get_namespace_health(ns)
-        icon = "✅" if health["unhealthy_pods"] == 0 else "⚠️"
+        icon = "[ok]" if health["unhealthy_pods"] == 0 else "[warn]"
         print(
-            f"  {icon} {ns}: {health['healthy_pods']}/{health['total_pods']} pods healthy"
+            f" {icon} {ns}: {health['healthy_pods']}/{health['total_pods']} pods healthy"
         )
     print()
 
 
 def _print_audit(entry: dict) -> None:
     print(f"\n{DIVIDER}")
-    print("📋 Audit Log Entry")
+    print(" Audit Log Entry")
     print(DIVIDER)
     for key in ("event_id", "pod_name", "namespace", "event_type", "action_taken",
                 "guardrail_check", "outcome", "tokens_used"):
         val = entry.get(key, "")
         if val:
-            print(f"  {key:20s}: {val}")
+            print(f" {key:20s}: {val}")
     diag = entry.get("diagnosis", "")
     if diag:
         # Truncate long diagnosis
         lines = diag.strip().split("\n")
-        preview = "\n    ".join(lines[:6])
+        preview = "\n ".join(lines[:6])
         if len(lines) > 6:
-            preview += "\n    …"
-        print(f"  {'diagnosis':20s}: {preview}")
+            preview += "\n …"
+        print(f" {'diagnosis':20s}: {preview}")
     print()
 
 
@@ -79,11 +79,11 @@ def run_scenario(
 ) -> None:
     scenario = name_fn(cluster)
     if "error" in scenario:
-        print(f"  ⚠️  Skipping — {scenario['error']}")
+        print(f" [warn] Skipping — {scenario['error']}")
         return
 
     print(f"\n{'═' * 60}")
-    print(f"▶ {scenario['name']}")
+    print(f"> {scenario['name']}")
     print(f"{'═' * 60}")
     print(f"\n{scenario['description']}\n")
 
@@ -125,20 +125,20 @@ def main() -> None:
         try:
             run_scenario(fn, cluster, agent, pause=pause)
         except Exception as exc:
-            print(f"\n  ❌ Scenario failed: {exc}\n")
+            print(f"\n [fail] Scenario failed: {exc}\n")
 
     # Final audit dump
     print(f"\n{'═' * 60}")
-    print("📜 Full Audit Log")
+    print(" Full Audit Log")
     print(f"{'═' * 60}")
     for entry in audit.get_recent(limit=20):
         ts = entry.get("timestamp", "")[:19]
         action = entry.get("action_taken", "")
         pod = entry.get("pod_name", "")
         outcome = entry.get("outcome", "")
-        print(f"  {ts}  {pod:30s}  {action:25s}  {outcome}")
+        print(f" {ts} {pod:30s} {action:25s} {outcome}")
 
-    print(f"\n✅ Demo complete.\n")
+    print(f"\n[ok] Demo complete.\n")
 
 
 if __name__ == "__main__":
