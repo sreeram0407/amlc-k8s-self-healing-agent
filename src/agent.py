@@ -15,12 +15,13 @@ from __future__ import annotations
 import json
 import os
 import uuid
+from pathlib import Path
 from typing import Any
 
 try:
-    import anthropic  # type: ignore
+    import anthropic # type: ignore
 except ImportError:
-    anthropic = None  # type: ignore
+    anthropic = None # type: ignore
 
 from .audit import AuditLogger
 from .config import Config
@@ -48,13 +49,13 @@ determine the root cause, and take the least-disruptive corrective action.
 2. Only after investigation, determine the root cause.
 
 ## Remediation Playbook
-- **CrashLoopBackOff + recent deployment** → rollback_deployment
-- **CrashLoopBackOff + NO recent deployment** → restart_pod (if restart limit not hit)
-- **OOMKilled** → update_resource_limits (increase memory by ~50%, e.g. 256Mi → 384Mi)
-- **ImagePullBackOff** → alert_human (agent cannot fix bad image references)
-- **Pending pods** → alert_human (needs human capacity planning)
-- **>50% pods unhealthy in namespace** → alert_human immediately (systemic failure)
-- **High error rate across many pods** → consider scale_deployment
+- **CrashLoopBackOff + recent deployment** -> rollback_deployment
+- **CrashLoopBackOff + NO recent deployment** -> restart_pod (if restart limit not hit)
+- **OOMKilled** -> update_resource_limits (increase memory by ~50%, e.g. 256Mi -> 384Mi)
+- **ImagePullBackOff** -> alert_human (agent cannot fix bad image references)
+- **Pending pods** -> alert_human (needs human capacity planning)
+- **>50% pods unhealthy in namespace** -> alert_human immediately (systemic failure)
+- **High error rate across many pods** -> consider scale_deployment
 
 ## Rules
 - Prefer the LEAST DISRUPTIVE fix.
@@ -75,6 +76,29 @@ _REMEDIATION_TOOLS = {
     "rollback_deployment",
     "update_resource_limits",
 }
+
+
+def _load_skill(path: str | None) -> str:
+    """Load the Kubernetes runbook skill file if present.
+
+    Default search order: $SKILL_PATH -> ./skills/kubernetes/SKILL.md -> /app/skills/kubernetes/SKILL.md.
+    Returns empty string if nothing found (agent falls back to the embedded prompt).
+    """
+    candidates = []
+    if path:
+        candidates.append(Path(path))
+    here = Path(__file__).resolve().parent.parent
+    candidates.extend([
+        here / "skills" / "kubernetes" / "SKILL.md",
+        Path("/app/skills/kubernetes/SKILL.md"),
+    ])
+    for p in candidates:
+        try:
+            if p.is_file():
+                return p.read_text()
+        except OSError:
+            continue
+    return ""
 
 
 class Agent:
@@ -98,6 +122,13 @@ class Agent:
             cluster,
             alert_callback=lambda inp: openclaw.format_alert_for_tool(inp),
         )
+        # Compose the effective system prompt: embedded framing + (optional) SKILL.md runbook
+        skill = _load_skill(os.environ.get("SKILL_PATH"))
+        self.system_prompt = (
+            SYSTEM_PROMPT + "\n\n---\n\n" + skill if skill else SYSTEM_PROMPT
+        )
+        if skill:
+            print(f" Loaded Kubernetes skill ({len(skill)} chars)")
 
     @staticmethod
     def _build_client() -> Any:
@@ -107,7 +138,7 @@ class Agent:
             "ANTHROPIC_API_KEY"
         )
         if use_mock or anthropic is None:
-            print("   ⚙️  Using offline mock Claude client "
+            print(" Using offline mock Claude client "
                   "(set ANTHROPIC_API_KEY to call the real API)")
             return MockAnthropicClient()
         return anthropic.Anthropic()
@@ -122,13 +153,13 @@ class Agent:
         pod_name = event.get("pod_name", event.get("involved_object", ""))
         namespace = event.get("namespace", "default")
 
-        print(f"\n🔍 Agent received event: {event.get('reason', 'unknown')} on {pod_name}")
+        print(f"\n Agent received event: {event.get('reason', 'unknown')} on {pod_name}")
 
         # Build initial user message describing the alert
         user_msg = self._build_alert_message(event)
 
         # Run the agentic tool-use loop
-        diagnosis, action_taken, action_params, reasoning, tokens = self._run_agent_loop(
+        diagnosis, action_taken, action_params, reasoning, tokens, models_used = self._run_agent_loop(
             user_msg, pod_name, namespace, event_id
         )
 
@@ -145,6 +176,7 @@ class Agent:
             "outcome": "success",
             "llm_reasoning": reasoning,
             "tokens_used": tokens,
+            "models_used": models_used,
         }
         self.audit.log(audit_entry)
         return audit_entry
@@ -169,12 +201,12 @@ class Agent:
         pod_name: str,
         namespace: str,
         event_id: str,
-    ) -> tuple[str, str, dict[str, Any], str, int]:
+    ) -> tuple[str, str, dict[str, Any], str, int, str]:
         """
         Run the Claude tool-use loop until the agent reaches a final answer
         or has executed a remediation / escalation.
 
-        Returns (diagnosis, action_taken, action_params, reasoning, total_tokens).
+        Returns (diagnosis, action_taken, action_params, reasoning, total_tokens, models_used).
         """
         messages: list[dict[str, Any]] = [{"role": "user", "content": user_message}]
         reasoning_parts: list[str] = []
@@ -182,13 +214,25 @@ class Agent:
         action_taken = "none"
         action_params: dict[str, Any] = {}
         diagnosis = ""
-        max_turns = 10  # safety limit
+        max_turns = 10 # safety limit
+
+        # Model routing: triage_model (Haiku) while investigating.
+        # Switch to incident_model (Sonnet) once remediation / escalation is
+        # being proposed — where we want the best judgment + best-written alert.
+        incident_phase = False
+        models_used: list[str] = []
 
         for turn in range(max_turns):
+            model_for_turn = (
+                self.config.agent.incident_model
+                if incident_phase
+                else self.config.agent.model
+            )
+            models_used.append(model_for_turn)
             response = self.client.messages.create(
-                model=self.config.agent.model,
+                model=model_for_turn,
                 max_tokens=self.config.agent.max_tokens,
-                system=SYSTEM_PROMPT,
+                system=self.system_prompt,
                 tools=TOOL_DEFINITIONS,
                 messages=messages,
             )
@@ -199,7 +243,7 @@ class Agent:
             for block in response.content:
                 if block.type == "text" and block.text:
                     reasoning_parts.append(block.text)
-                    print(f"   🤖 Agent: {block.text[:200]}{'…' if len(block.text) > 200 else ''}")
+                    print(f" Agent: {block.text[:200]}{'…' if len(block.text) > 200 else ''}")
 
             # If model stopped without tool use, we're done
             if response.stop_reason == "end_turn":
@@ -215,13 +259,13 @@ class Agent:
 
                     tool_name = block.name
                     tool_input = block.input
-                    print(f"   🔧 Tool call: {tool_name}({json.dumps(tool_input, default=str)[:120]})")
+                    print(f" Tool call: {tool_name}({json.dumps(tool_input, default=str)[:120]})")
 
                     # --- Guardrail gate for remediation tools ---
                     if tool_name in _REMEDIATION_TOOLS:
                         allowed, reason = self.guardrails.check(tool_name, tool_input)
                         if not allowed:
-                            print(f"   🛡️  Guardrail BLOCKED: {reason}")
+                            print(f" Guardrail BLOCKED: {reason}")
                             # Instead of executing, inform Claude it was blocked
                             tool_results.append({
                                 "type": "tool_result",
@@ -237,6 +281,10 @@ class Agent:
                             })
                             action_taken = f"blocked:{tool_name}"
                             action_params = tool_input
+                            # A blocked action means we're in incident territory —
+                            # the next turn should reason about escalation with
+                            # the stronger model.
+                            incident_phase = True
                             # Log the guardrail block
                             self.audit.log({
                                 "event_id": event_id,
@@ -262,16 +310,22 @@ class Agent:
                         self.guardrails.record_action(tool_name, tool_input)
                         action_taken = tool_name
                         action_params = tool_input
-                        print(f"   ✅ Action executed: {tool_name}")
+                        incident_phase = True
+                        print(f" [ok] Action executed: {tool_name}")
 
                     if tool_name == "alert_human":
                         action_taken = "escalated"
                         action_params = tool_input
-                        print(f"   📢 Escalated to human: {tool_input.get('summary', '')}")
+                        incident_phase = True
+                        print(f" Escalated to human: {tool_input.get('summary', '')}")
 
                 # Feed tool results back to Claude
                 messages.append({"role": "assistant", "content": response.content})
                 messages.append({"role": "user", "content": tool_results})
 
         diagnosis = diagnosis or "\n".join(reasoning_parts) or "Agent completed without explicit diagnosis."
-        return diagnosis, action_taken, action_params, "\n".join(reasoning_parts), total_tokens
+        # Deduplicate models_used while preserving order
+        seen: set[str] = set()
+        unique_models = [m for m in models_used if not (m in seen or seen.add(m))]
+        models_label = ",".join(unique_models) if unique_models else "unknown"
+        return diagnosis, action_taken, action_params, "\n".join(reasoning_parts), total_tokens, models_label
