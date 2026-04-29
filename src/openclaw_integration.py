@@ -46,6 +46,29 @@ class OpenClawIntegration:
         print(f"   │ action   : {_trunc(alert['recommended_action'], 45):<45s}│")
         print(f"   └{bar}┘")
 
+    def post_resolution(self, pod_name: str, namespace: str,
+                        action_taken: str, action_params: dict,
+                        diagnosis: str = "") -> dict[str, Any]:
+        """Pretty-print resolution for the local demo. Matches SlackIntegration's signature."""
+        params_str = ", ".join(f"{k}={v}" for k, v in (action_params or {}).items()
+                               if k not in ("pod_name", "namespace"))
+        bar = "─" * 58
+        print(f"\n   ┌{bar}┐")
+        print(f"   │ [FIXED]  Auto-remediated -> {self.config.channel:<27s}│")
+        print(f"   ├{bar}┤")
+        print(f"   │ pod      : {pod_name:<45s}│")
+        print(f"   │ ns       : {namespace:<45s}│")
+        print(f"   │ action   : {action_taken:<45s}│")
+        print(f"   │ params   : {_trunc(params_str, 45):<45s}│")
+        print(f"   └{bar}┘")
+        return {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "pod_name": pod_name,
+            "namespace": namespace,
+            "action_taken": action_taken,
+            "action_params": action_params,
+        }
+
 
 def _trunc(s: str, n: int) -> str:
     s = (s or "").replace("\n", " ")

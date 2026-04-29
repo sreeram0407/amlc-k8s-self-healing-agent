@@ -179,6 +179,23 @@ class Agent:
             "models_used": models_used,
         }
         self.audit.log(audit_entry)
+
+        # Notify channel of successful auto-remediation (mirror of alert_human)
+        if action_taken in _REMEDIATION_TOOLS:
+            try:
+                self.openclaw.post_resolution(
+                    pod_name=pod_name,
+                    namespace=namespace,
+                    action_taken=action_taken,
+                    action_params=action_params,
+                    diagnosis=diagnosis,
+                )
+            except AttributeError:
+                # Older integration without post_resolution — ignore silently
+                pass
+            except Exception as e:
+                print(f" [warn] post_resolution failed: {e}")
+
         return audit_entry
 
     # ------------------------------------------------------------------

@@ -105,6 +105,71 @@ class SlackIntegration:
             print(f" [fail] Slack post failed: {err}")
             self._print(alert)
 
+
+    def post_resolution(self, pod_name: str, namespace: str,
+                        action_taken: str, action_params: dict,
+                        diagnosis: str = "") -> dict[str, Any]:
+        """Post a green 'Issue Fixed' confirmation message to Slack after
+        a successful auto-remediation. Same signature as OpenClaw's stub
+        so agent.py can call this without knowing which integration is wired."""
+        resolution = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "pod_name": pod_name,
+            "namespace": namespace,
+            "action_taken": action_taken,
+            "action_params": action_params,
+            "channel": self.config.channel,
+        }
+        if self._client is None:
+            print(f" [resolution] Pod {pod_name} auto-remediated via {action_taken} (Slack disabled)")
+            return resolution
+
+        # Format params nicely (e.g. {memory: 96Mi})
+        params_str = ", ".join(f"{k}={v}" for k, v in (action_params or {}).items()
+                               if k not in ("pod_name", "namespace"))
+        diagnosis_short = (diagnosis or "").strip().split("\n")[0][:200]
+
+        blocks = [
+            {
+                "type": "header",
+                "text": {"type": "plain_text",
+                         "text": f"[FIXED] Issue resolved: pod \u2018{pod_name}\u2019 auto-remediated"},
+            },
+            {
+                "type": "section",
+                "fields": [
+                    {"type": "mrkdwn", "text": f"*Pod*\n`{pod_name}`"},
+                    {"type": "mrkdwn", "text": f"*Namespace*\n`{namespace}`"},
+                    {"type": "mrkdwn", "text": f"*Action taken*\n`{action_taken}`"},
+                    {"type": "mrkdwn", "text": f"*Parameters*\n`{params_str or 'none'}`"},
+                ],
+            },
+        ]
+        if diagnosis_short:
+            blocks.append({
+                "type": "section",
+                "text": {"type": "mrkdwn",
+                         "text": f"*Agent diagnosis*\n{diagnosis_short}"},
+            })
+        blocks.append({
+            "type": "context",
+            "elements": [{
+                "type": "mrkdwn",
+                "text": f"k8s-self-healer \u00b7 auto-remediated \u00b7 {resolution['timestamp']}",
+            }],
+        })
+
+        try:
+            self._client.chat_postMessage(
+                channel=self.config.channel,
+                blocks=blocks,
+                text=f"FIXED: {pod_name} auto-remediated via {action_taken}",
+            )
+            print(f" Slack resolution posted to {self.config.channel}")
+        except SlackApiError as e:
+            err = getattr(e, "response", {}).get("error", str(e)) if hasattr(e, "response") else str(e)
+            print(f" [fail] Slack resolution post failed: {err}")
+        return resolution
     def _print(self, alert: dict[str, Any]) -> None:
         """Fallback when Slack is unavailable — same pretty-print as the demo."""
         icon = _SEV_ICON.get(alert["severity"], "•")
