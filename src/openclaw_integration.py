@@ -15,6 +15,11 @@ from .config import OpenClawConfig
 _SEV_ICON = {"critical": "[CRIT]", "warning": "[WARN]", "info": "[INFO]"}
 
 
+def _first_line(text: str, n: int = 200) -> str:
+    line = (text or "").strip().splitlines()[0] if (text or "").strip() else ""
+    return line[: n - 1] + "…" if len(line) > n else line
+
+
 class OpenClawIntegration:
     def __init__(self, config: OpenClawConfig) -> None:
         self.config = config
@@ -28,6 +33,24 @@ class OpenClawIntegration:
             "summary": inp.get("summary", ""),
             "details": inp.get("details", ""),
             "recommended_action": inp.get("recommended_action", ""),
+            "channel": self.config.channel,
+        }
+        self.alerts.append(alert)
+        self._emit(alert)
+        return alert
+
+    def post_resolution(self, audit_entry: dict[str, Any]) -> dict[str, Any]:
+        """Notify the channel that an incident was auto-resolved by the agent."""
+        action = audit_entry.get("action_taken", "unknown")
+        alert = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "severity": "info",
+            "summary": (
+                f"Auto-resolved: {audit_entry.get('event_type', 'incident')} on "
+                f"{audit_entry.get('pod_name', '?')} via {action}"
+            ),
+            "details": _first_line(audit_entry.get("diagnosis", "")),
+            "recommended_action": "No human action required — incident resolved.",
             "channel": self.config.channel,
         }
         self.alerts.append(alert)

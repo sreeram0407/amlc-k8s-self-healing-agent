@@ -52,8 +52,9 @@ determine the root cause, and take the least-disruptive corrective action.
 - **CrashLoopBackOff + recent deployment** -> rollback_deployment
 - **CrashLoopBackOff + NO recent deployment** -> restart_pod (if restart limit not hit)
 - **OOMKilled** -> update_resource_limits (increase memory by ~50%, e.g. 256Mi -> 384Mi)
-- **ImagePullBackOff** -> alert_human (agent cannot fix bad image references)
-- **Pending pods** -> alert_human (needs human capacity planning)
+- **ImagePullBackOff + recent deployment** -> rollback_deployment (the new image tag is bad — roll back to the previous known-good revision)
+- **ImagePullBackOff + NO recent deployment** -> alert_human (registry / auth issue, agent cannot fix)
+- **Pending pods** -> alert_human (cluster capacity / scheduling issue — none of the agent's tools can create capacity)
 - **>50% pods unhealthy in namespace** -> alert_human immediately (systemic failure)
 - **High error rate across many pods** -> consider scale_deployment
 
@@ -179,6 +180,20 @@ class Agent:
             "models_used": models_used,
         }
         self.audit.log(audit_entry)
+
+        # Post a resolution notification on successful auto-fixes so Slack/OpenClaw
+        # captures the full incident lifecycle (escalations are already posted
+        # via the alert_human tool path).
+        if (
+            action_taken in _REMEDIATION_TOOLS
+            and audit_entry["outcome"] == "success"
+            and hasattr(self.openclaw, "post_resolution")
+        ):
+            try:
+                self.openclaw.post_resolution(audit_entry)
+            except Exception as exc:  # noqa: BLE001 — never let notify break the loop
+                print(f" [warn] resolution notification failed: {exc}")
+
         return audit_entry
 
     # ------------------------------------------------------------------

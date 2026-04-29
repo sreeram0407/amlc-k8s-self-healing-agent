@@ -15,6 +15,15 @@ import time
 # Ensure project root is on the path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv(
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"),
+        override=True,
+    )
+except ImportError:
+    pass
+
 from src.audit import AuditLogger
 from src.config import load_config
 from src.guardrails import Guardrails
@@ -26,6 +35,8 @@ from demo.scenarios import (
     scenario_rollback_bad_deploy,
     scenario_guardrail_escalation,
     scenario_systemic_failure,
+    scenario_imagepull_rollback,
+    scenario_pending_capacity_escalation,
 )
 
 
@@ -85,6 +96,10 @@ def run_scenario(
     print(f"\n{'═' * 60}")
     print(f"> {scenario['name']}")
     print(f"{'═' * 60}")
+    if scenario.get("corner_case"):
+        print(f"\n Corner case under test: {scenario['corner_case']}")
+    if scenario.get("naive_baseline"):
+        print(f" Naive baseline would do: {scenario['naive_baseline']}")
     print(f"\n{scenario['description']}\n")
 
     _print_cluster_status(cluster)
@@ -118,8 +133,20 @@ def main() -> None:
         scenario_simple_recovery,
         scenario_rollback_bad_deploy,
         scenario_guardrail_escalation,
+        scenario_imagepull_rollback,
+        scenario_pending_capacity_escalation,
         scenario_systemic_failure,
     ]
+
+    only = os.environ.get("DEMO_ONLY")
+    if only:
+        import re
+        wanted = {int(x) for x in only.split(",") if x.strip().isdigit()}
+        scenario_num = lambda fn: int(m.group(1)) if (m := re.search(r"Scenario\s+(\d+)", fn(MockCluster()).get("name", ""))) else -1
+        scenarios = [s for s in scenarios if scenario_num(s) in wanted]
+        if not scenarios:
+            print(f"[fail] DEMO_ONLY={only} matched no scenarios (try 1..6).")
+            return
 
     for fn in scenarios:
         try:

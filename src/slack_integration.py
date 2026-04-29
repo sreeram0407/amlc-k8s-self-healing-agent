@@ -54,6 +54,77 @@ class SlackIntegration:
         self._post(alert)
         return alert
 
+    def post_resolution(self, audit_entry: dict[str, Any]) -> dict[str, Any]:
+        """Notify the channel that an incident was auto-resolved by the agent.
+
+        Uses the same channel as escalations but with [INFO] severity and a
+        green-success framing — so on-call still sees the full lifecycle.
+        """
+        action = audit_entry.get("action_taken", "unknown")
+        diag = (audit_entry.get("diagnosis") or "").strip().splitlines()
+        first_line = diag[0] if diag else ""
+        alert = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "severity": "info",
+            "summary": (
+                f"Auto-resolved: {audit_entry.get('event_type', 'incident')} on "
+                f"{audit_entry.get('pod_name', '?')} via {action}"
+            ),
+            "details": first_line,
+            "recommended_action": "No human action required — incident resolved.",
+            "channel": self.config.channel,
+        }
+        self.alerts.append(alert)
+        self._post_resolution(alert, audit_entry)
+        return alert
+
+    def _post_resolution(self, alert: dict[str, Any], audit_entry: dict[str, Any]) -> None:
+        if self._client is None:
+            self._print(alert)
+            return
+        action = audit_entry.get("action_taken", "unknown")
+        ns = audit_entry.get("namespace", "?")
+        pod = audit_entry.get("pod_name", "?")
+        event_type = audit_entry.get("event_type", "?")
+        blocks = [
+            {
+                "type": "header",
+                "text": {"type": "plain_text",
+                         "text": f"[OK] RESOLVED: {event_type} on {pod}"},
+            },
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn",
+                         "text": (f"*Pod:* `{ns}/{pod}`\n"
+                                  f"*Failure:* `{event_type}`\n"
+                                  f"*Action taken:* `{action}`\n"
+                                  f"*Outcome:* success — no human action required")},
+            },
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn",
+                         "text": f"*Diagnosis*\n{alert['details'][:1500]}"},
+            },
+            {
+                "type": "context",
+                "elements": [{
+                    "type": "mrkdwn",
+                    "text": f"k8s-self-healer · auto-resolved · {alert['timestamp']}",
+                }],
+            },
+        ]
+        try:
+            self._client.chat_postMessage(
+                channel=self.config.channel,
+                blocks=blocks,
+                text=f"RESOLVED: {event_type} on {pod} via {action}",
+            )
+            print(f" Slack resolution posted to {self.config.channel}")
+        except SlackApiError as e:
+            err = getattr(e, "response", {}).get("error", str(e)) if hasattr(e, "response") else str(e)
+            print(f" [fail] Slack post failed: {err}")
+            self._print(alert)
+
     def _post(self, alert: dict[str, Any]) -> None:
         if self._client is None:
             self._print(alert)
