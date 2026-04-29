@@ -3,13 +3,16 @@
 Your local self-healing agent, containerized and wired to:
 - Real Kubernetes (via `kubernetes` Python client + in-cluster ServiceAccount)
 - Real Slack alerts (via `slack_sdk`, reading `SLACK_BOT_TOKEN` from Secret Manager)
+- Optional OpenClaw on-call copilot escalation (via internal GKE webhook)
 - Real Claude API (via `anthropic`, reading `ANTHROPIC_API_KEY` from Secret Manager)
 
 ## What changed from your local demo
 
 **Added:**
 - `src/k8s_cluster.py` — `KubernetesCluster` class, drop-in replacement for `MockCluster`
-- `src/slack_integration.py` — `SlackIntegration` class, drop-in replacement for `OpenClawIntegration`
+- `src/slack_integration.py` — Slack alert delivery
+- `src/openclaw_integration.py` — optional OpenClaw webhook delivery
+- `src/escalation_integration.py` — fanout wrapper for Slack + OpenClaw
 - `poller.py` — CronJob entrypoint (replaces `run_demo.py` for production)
 - `Dockerfile`, `requirements.txt`
 - `k8s/` manifests
@@ -17,7 +20,6 @@ Your local self-healing agent, containerized and wired to:
 **Unchanged (still works locally):**
 - `src/agent.py`, `src/guardrails.py`, `src/mcp_server.py`, `src/audit.py`
 - `src/mock_cluster.py`, `src/mock_anthropic.py` (local demo path)
-- `src/openclaw_integration.py` (still used by `run_demo.py`)
 - `demo/run_demo.py`, `demo/scenarios.py`
 
 ---
@@ -58,6 +60,12 @@ echo -n "xoxb-REPLACE_ME" | \
   gcloud secrets create slack-bot-token --data-file=- \
   --replication-policy=automatic --project=openclaw-k8s-healer
 
+# OpenClaw hooks token, copied from the OpenClaw namespace after OpenClaw is running
+kubectl get secret openclaw-secrets -n openclaw \
+  -o jsonpath='{.data.OPENCLAW_HOOKS_TOKEN}' | base64 -d | \
+  gcloud secrets create openclaw-hooks-token --data-file=- \
+  --replication-policy=automatic --project=openclaw-k8s-healer
+
 # Verify
 gcloud secrets list --project=openclaw-k8s-healer
 ```
@@ -66,6 +74,8 @@ If the secrets already exist, use `versions add` instead of `create`:
 ```bash
 echo -n "sk-ant-..." | gcloud secrets versions add anthropic-api-key --data-file=-
 ```
+
+Use the same `versions add` pattern for `slack-bot-token` or `openclaw-hooks-token` if they already exist.
 
 ## Step 3: Build and push the image
 
@@ -131,8 +141,9 @@ kubectl run bad-image --image=nginx:nonexistent-tag-12345 --restart=Never
 
 Wait 5 min (or trigger manually again). You should see:
 1. Agent logs list unhealthy pods
-2. Agent investigates, decides, escalates to Slack (for ImagePullBackOff)
+2. Agent investigates, decides, escalates (for ImagePullBackOff)
 3. Slack channel gets a message
+4. Poller logs show `OpenClaw incident posted: {"ok":true,...}` when OpenClaw is enabled
 
 ---
 
@@ -149,6 +160,13 @@ Wait 5 min (or trigger manually again). You should see:
 **"403" from the Slack API:**
 - Bot token needs `chat:write` scope
 - Bot must be invited to `#k8s-alerts` (run `/invite @your-bot` in the channel)
+
+**OpenClaw webhook fails:**
+- Confirm OpenClaw is listening internally: `kubectl logs -n openclaw deployment/openclaw --tail=80`
+- Look for `host mounted at http://0.0.0.0:18789/`
+- Test from inside GKE:
+  `kubectl run openclaw-curl -n openclaw --rm -i --restart=Never --image=curlimages/curl:8.8.0 -- curl -sS http://openclaw.openclaw.svc.cluster.local:18789/hooks/agent`
+- The healer expects `openclaw-hooks-token` in Secret Manager and mounts it as `OPENCLAW_HOOKS_TOKEN`
 
 **Anthropic API errors:**
 - If the spend cap ($20 from S4's plan) is hit, calls will fail

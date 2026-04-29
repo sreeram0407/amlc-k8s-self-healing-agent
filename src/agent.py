@@ -29,7 +29,6 @@ from .guardrails import Guardrails
 from .mcp_server import MCPToolHandler, TOOL_DEFINITIONS
 from .mock_anthropic import MockAnthropicClient
 from .mock_cluster import MockCluster
-from .openclaw_integration import OpenClawIntegration
 
 # ---------------------------------------------------------------------------
 # System prompt
@@ -111,7 +110,7 @@ class Agent:
         cluster: MockCluster,
         audit: AuditLogger,
         guardrails: Guardrails,
-        openclaw: OpenClawIntegration,
+        openclaw: Any,
     ) -> None:
         self.config = config
         self.cluster = cluster
