@@ -66,8 +66,18 @@ def _derive_status(pod: Any) -> str:
             if waiting and waiting.reason == "CrashLoopBackOff":
                 return "CrashLoopBackOff"
             terminated = getattr(cs.last_state, "terminated", None) if cs.last_state else None
-            if terminated and terminated.reason == "OOMKilled":
-                return "OOMKilled"
+            if terminated:
+                if terminated.reason == "OOMKilled":
+                    return "OOMKilled"
+                # CrashLoopBackOff pods cycle: brief Running phase between
+                # backoff restarts. If we sample during that window the current
+                # state is "running", but lastState shows the recent crash.
+                # Treat exit≠0 with restart_count≥2 as CrashLoopBackOff —
+                # matches what `kubectl get pod` reports.
+                exit_code = getattr(terminated, "exit_code", 0) or 0
+                restarts = cs.restart_count or 0
+                if exit_code != 0 and restarts >= 2:
+                    return "CrashLoopBackOff"
         return "Running"
 
     if phase == "Failed":

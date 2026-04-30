@@ -190,9 +190,6 @@ class Agent:
                     action_params=action_params,
                     diagnosis=diagnosis,
                 )
-            except AttributeError:
-                # Older integration without post_resolution — ignore silently
-                pass
             except Exception as e:
                 print(f" [warn] post_resolution failed: {e}")
 

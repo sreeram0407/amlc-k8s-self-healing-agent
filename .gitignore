@@ -19,3 +19,6 @@ env/
 *.logk8s-healer/
 k8s-healer.tar.gz
 __pycache__/
+
+*.csv
+/results

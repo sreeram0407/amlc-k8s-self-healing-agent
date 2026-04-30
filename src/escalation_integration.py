@@ -31,3 +31,19 @@ class EscalationIntegration:
         alert = {"results": results}
         self.alerts.append(alert)
         return alert
+
+    def post_resolution(self, **kwargs: Any) -> dict[str, Any]:
+        """Fan a successful auto-remediation notification to every destination
+        that implements `post_resolution`. Destinations without it are skipped."""
+        results: list[dict[str, Any]] = []
+        for destination in self.destinations:
+            if not hasattr(destination, "post_resolution"):
+                continue
+            name = destination.__class__.__name__
+            try:
+                result = destination.post_resolution(**kwargs)
+                results.append({"destination": name, "ok": True, "result": result})
+            except Exception as exc:  # noqa: BLE001 - notifications must not crash healing
+                print(f" [fail] {name} resolution post failed: {exc}")
+                results.append({"destination": name, "ok": False, "error": str(exc)})
+        return {"results": results}

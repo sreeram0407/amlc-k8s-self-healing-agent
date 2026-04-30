@@ -1,0 +1,4 @@
+{
+  "claude-haiku-4-5-20251001": {"blended_per_1m": 1.40},
+  "claude-sonnet-4-6":         {"blended_per_1m": 6.00}
+}

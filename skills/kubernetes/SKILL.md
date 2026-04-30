@@ -32,7 +32,7 @@ Before proposing any remediation, gather facts. In order:
 1. **`get_pod_status`** — confirm the current state and fetch `memory_limit`, `restart_count`, `deployment` (owner).
 2. **`get_pod_logs`** (lines=50) — look for the actual error. OOMKilled without a log is fine; CrashLoopBackOff without a log is suspicious.
 3. **`get_events`** (namespace-scoped) — cluster warnings that precede the failure (Failed scheduling, Liveness probe failed, BackOff).
-4. **`get_deployment_info`** (only if the pod has an owning deployment) — check `revision_history` to determine if this is regression from a recent rollout.
+4. **`get_deployment_info`** — check `revision_history` to determine if this is regression from a recent rollout. **REQUIRED for `ImagePullBackOff` and `CrashLoopBackOff`** before you can decide between rollback and escalation. If `revision_history` has ≥2 entries and the latest revision was created in the last 60 min, the bad deploy is the root cause and rollback is the correct action — do NOT escalate without checking this.
 
 **Do not call more than 5 investigation tools in total.** If you cannot diagnose with these inputs, escalate — don't keep digging.
 
@@ -75,7 +75,7 @@ Escalations are Slack messages to the on-call channel. They must follow this str
 
 ### Escalate (do not auto-fix) when
 
-- Status is `ImagePullBackOff` AND no recent deployment correlates (registry / auth / network)
+- Status is `ImagePullBackOff` AND `get_deployment_info` confirmed there is no prior revision to roll back to (registry / auth / network — agent cannot fix bad image refs without a rollback target)
 - Status is `Pending` (capacity / scheduling — agent has no tool for this)
 - Guardrail blocks your remediation
 - Namespace blast radius ≥50%
