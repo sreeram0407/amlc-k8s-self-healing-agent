@@ -31,6 +31,7 @@ spec:
               - |
                 export ANTHROPIC_API_KEY="$(cat /mnt/secrets-store/anthropic-api-key)"
                 export SLACK_BOT_TOKEN="$(cat /mnt/secrets-store/slack-bot-token)"
+                export OPENCLAW_HOOKS_TOKEN="$(cat /mnt/secrets-store/openclaw-hooks-token)"
                 exec python /app/poller.py
             env:
             - name: CONFIG_PATH

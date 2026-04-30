@@ -1,6 +1,6 @@
 # K8s Self-Healing Agent
 
-An autonomous Kubernetes reliability agent. When a pod fails, the agent investigates with read-only tools, diagnoses the root cause via Claude (with tool use), and either auto-remediates or escalates to a human via Slack — every action gated by deterministic guardrails and recorded to an audit log.
+An autonomous Kubernetes reliability agent. When a pod fails, the agent investigates with read-only tools, diagnoses the root cause via Claude (with tool use), and either auto-remediates or escalates to a human via Slack and optional OpenClaw fanout — every action gated by deterministic guardrails and recorded to an audit log.
 
 Built for Columbia AMLC Spring 2026.
 
@@ -14,10 +14,11 @@ Built for Columbia AMLC Spring 2026.
                                                 │                                  └────┬─────┘
                                                 v                                       │
                                          ┌─────────────┐                                v
-                                         │  Guardrails │                          ┌──────────┐
-                                         │ deterministic                          │  Slack   │
-                                         └─────────────┘                          │  + Audit │
-                                                                                  └──────────┘
+                                         │  Guardrails │                          ┌────────────┐
+                                         │ deterministic                          │ Slack      │
+                                         └─────────────┘                          │ OpenClaw   │
+                                                                                  │ + Audit    │
+                                                                                  └────────────┘
 ```
 
 The same agent code runs in two environments via dependency injection:
@@ -34,7 +35,8 @@ The same agent code runs in two environments via dependency injection:
 | `src/audit.py` | SQLite audit trail — every decision recorded with diagnosis and tokens |
 | `src/mock_cluster.py` | In-memory cluster for offline demo |
 | `src/k8s_cluster.py` | Real K8s adapter (drop-in replacement for `MockCluster`) |
-| `src/openclaw_integration.py` | Local stdout integration (used by `demo/run_demo.py`) |
+| `src/escalation_integration.py` | Fanout wrapper that sends `alert_human` events to each configured destination |
+| `src/openclaw_integration.py` | Optional OpenClaw webhook delivery for on-call copilot escalation |
 | `src/slack_integration.py` | Production Slack integration — both alerts and resolutions |
 | `src/mock_anthropic.py` | Offline deterministic Claude stand-in for local demo |
 | `poller.py` | CronJob entrypoint for production deployment |
@@ -123,7 +125,7 @@ Deterministic checks run **outside** the LLM, in plain Python. The model propose
 
 ## Configuration
 
-`config.yaml` controls models, guardrail thresholds, and the Slack channel:
+`config.yaml` controls models, guardrail thresholds, Slack delivery, and optional OpenClaw webhook fanout:
 
 ```yaml
 agent:
@@ -189,6 +191,7 @@ action_params | guardrail_check | outcome | llm_reasoning | tokens_used | models
     ├── agent.py
     ├── audit.py
     ├── config.py
+    ├── escalation_integration.py
     ├── guardrails.py
     ├── k8s_cluster.py
     ├── mcp_server.py

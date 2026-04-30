@@ -30,8 +30,13 @@ class GuardrailsConfig:
 @dataclass
 class OpenClawConfig:
     channel: str = "#oncall-sre"
+    enabled: bool = False
     webhook_url: str = ""
+    agent_id: str = "default"
+    hooks_token_env: str = "OPENCLAW_HOOKS_TOKEN"
+    deliver: bool = False
     paging_enabled: bool = False
+    timeout_seconds: int = 10
 
 
 @dataclass

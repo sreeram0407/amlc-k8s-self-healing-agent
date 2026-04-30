@@ -16,5 +16,10 @@ guardrails:
 
 openclaw:
   channel: "#oncall-sre"
+  enabled: false
   webhook_url: ""
+  agent_id: "default"
+  hooks_token_env: "OPENCLAW_HOOKS_TOKEN"
+  deliver: false
   paging_enabled: false
+  timeout_seconds: 10

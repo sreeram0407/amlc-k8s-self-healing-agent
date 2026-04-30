@@ -20,8 +20,13 @@ data:
 
     openclaw:
       channel: "#k8s-alerts"
-      webhook_url: ""
+      enabled: true
+      webhook_url: "http://openclaw.openclaw.svc.cluster.local:18789/hooks/agent"
+      agent_id: "default"
+      hooks_token_env: "OPENCLAW_HOOKS_TOKEN"
+      deliver: false
       paging_enabled: false
+      timeout_seconds: 10
 ---
 # Persistent SQLite audit log — shared across CronJob runs
 apiVersion: v1

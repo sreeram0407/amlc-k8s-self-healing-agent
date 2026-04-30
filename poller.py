@@ -13,6 +13,7 @@ No long-running loop — the CronJob schedule is the loop.
 Env vars:
   ANTHROPIC_API_KEY required (or DEMO_MOCK=1 for offline testing)
   SLACK_BOT_TOKEN required for real alerts
+  OPENCLAW_HOOKS_TOKEN optional; enables OpenClaw webhook escalation when configured
   WATCH_NAMESPACES comma-separated list (default: all non-system)
   AUDIT_DB_PATH SQLite path (default: /data/audit.db)
   CONFIG_PATH YAML config path (default: /etc/healer/config.yaml)
@@ -32,8 +33,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from src.agent import Agent
 from src.audit import AuditLogger
 from src.config import load_config
+from src.escalation_integration import EscalationIntegration
 from src.guardrails import Guardrails
 from src.k8s_cluster import KubernetesCluster
+from src.openclaw_integration import OpenClawIntegration
 from src.slack_integration import SlackIntegration
 
 
@@ -82,7 +85,9 @@ def main() -> int:
     audit = AuditLogger(db_path=audit_path)
     guardrails = Guardrails(cfg.guardrails, cluster=cluster)
     slack = SlackIntegration(cfg.openclaw)
-    agent = Agent(cfg, cluster, audit, guardrails, slack)
+    openclaw = OpenClawIntegration(cfg.openclaw)
+    escalation = EscalationIntegration([slack, openclaw])
+    agent = Agent(cfg, cluster, audit, guardrails, escalation)
 
     # --- Find unhealthy pods ---
     try:
