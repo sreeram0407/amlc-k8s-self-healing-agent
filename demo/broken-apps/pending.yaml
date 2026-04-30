@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pending-demo
+  namespace: default
+  labels:
+    app: pending-demo
+    demo: broken
+    scenario: pending
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pending-demo
+  template:
+    metadata:
+      labels:
+        app: pending-demo
+        demo: broken
+        scenario: pending
+    spec:
+      terminationGracePeriodSeconds: 5
+      containers:
+      - name: app
+        image: nginx:1.27-alpine
+        resources:
+          requests:
+            cpu: "100"
+            memory: "200Gi"
+          limits:
+            cpu: "100"
+            memory: "200Gi"

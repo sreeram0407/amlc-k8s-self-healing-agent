@@ -47,8 +47,9 @@ Apply the FIRST matching rule. Stop at the first match.
 | `CrashLoopBackOff` | Already restarted 3 times this hour | Escalate | `alert_human` |
 | `OOMKilled` | New memory ≤ 2× original limit | Raise memory limit (+50%, rounded up to a sane boundary) | `update_resource_limits` |
 | `OOMKilled` | Requested memory > 2× original | Escalate (real leak, not a sizing issue) | `alert_human` |
-| `ImagePullBackOff` | Any | **Always** escalate — agent cannot fix bad image refs | `alert_human` |
-| `Pending` | Any | Escalate — needs human capacity planning | `alert_human` |
+| `ImagePullBackOff` | Deployment has >1 revision AND last revision created in the last 60 min (correlates with the bad pull) | Roll back to previous revision — the deploy is the root cause | `rollback_deployment` |
+| `ImagePullBackOff` | No correlated recent deployment (registry / auth / network failure) | Escalate — no rollback target, agent cannot fix bad image refs | `alert_human` |
+| `Pending` | Any | Escalate — cluster capacity / scheduling, agent has no tool to add capacity | `alert_human` |
 | `Error` | Any | Restart once; if fails again, escalate | `restart_pod` then `alert_human` |
 | Any | Namespace blast radius ≥50% unhealthy | Escalate immediately (do not touch) | `alert_human` |
 
@@ -74,7 +75,8 @@ Escalations are Slack messages to the on-call channel. They must follow this str
 
 ### Escalate (do not auto-fix) when
 
-- Status is `ImagePullBackOff` or `Pending`
+- Status is `ImagePullBackOff` AND no recent deployment correlates (registry / auth / network)
+- Status is `Pending` (capacity / scheduling — agent has no tool for this)
 - Guardrail blocks your remediation
 - Namespace blast radius ≥50%
 - Investigation is inconclusive after 5 tool calls
@@ -114,6 +116,6 @@ Action: update_resource_limits to 20Mi (2× original). Done.
 ```
 
 ```
-Diagnosis: ImagePullBackOff on imagepull-demo (image nginx:nonexistent-tag-12345 not in registry).
-Action: alert_human — agent cannot rewrite image references. Done.
+Diagnosis: ImagePullBackOff on imagepull-demo (image nginx:nonexistent-tag-12345 not in registry); deployment was updated 30s ago — bad deploy is the root cause.
+Action: rollback_deployment to previous revision. Done.
 ```

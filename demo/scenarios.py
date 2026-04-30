@@ -98,6 +98,97 @@ def scenario_guardrail_escalation(cluster: MockCluster) -> dict[str, Any]:
     }
 
 
+def scenario_imagepull_rollback(cluster: MockCluster) -> dict[str, Any]:
+    """ImagePullBackOff after deploying a non-existent image tag -> rollback.
+
+    Catalog: S03 (Deployment Rollout Stuck) — corner case #1:
+    'New image tag doesn't exist in registry -> ImagePullBackOff on all new replicas.'
+    """
+    deployment = "api-server"
+    bad_image = "myapp/api-server:v9.9.9-nonexistent"
+    result = cluster.simulate_deploy(deployment, bad_image)
+    if result.startswith("Error"):
+        return {"error": result}
+
+    cluster.inject_failure_on_deployment(deployment, "ImagePullBackOff")
+    pod = _first_pod(cluster, deployment)
+    if pod is None:
+        return {"error": "api-server pod not found"}
+
+    return {
+        "name": "Scenario 5: ImagePull Rollback",
+        "corner_case": (
+            "S03#1 — Image tag doesn't exist in registry; ImagePullBackOff on all new "
+            "replicas right after a deploy."
+        ),
+        "naive_baseline": (
+            "A naive watchdog would restart the pods in a loop — useless, because the "
+            "image itself is unpullable."
+        ),
+        "description": (
+            f"api-server was just deployed with a bad image tag ({bad_image}). "
+            "All replicas are stuck in ImagePullBackOff. The agent should distinguish "
+            "this from a crash, correlate with the recent deploy, and rollback."
+        ),
+        "event": {
+            "pod_name": pod.name,
+            "namespace": pod.namespace,
+            "reason": "ImagePullBackOff",
+            "status": "ImagePullBackOff",
+            "message": (
+                f"Pod {pod.name} cannot pull image {bad_image} after recent deploy of "
+                "api-server"
+            ),
+        },
+    }
+
+
+def scenario_pending_capacity_escalation(cluster: MockCluster) -> dict[str, Any]:
+    """Pending pod due to insufficient cluster capacity -> escalate.
+
+    Catalog: S09 (Resource Quota Exhaustion) corner case #4 / S02 capacity:
+    pod cannot schedule, no pod-level fault — none of the agent's tools can fix it.
+    """
+    pod = _first_pod(cluster, "user-service")
+    if pod is None:
+        return {"error": "user-service pod not found"}
+
+    cluster.inject_failure(pod.name, "Pending", pod.namespace)
+    cluster._add_event(
+        "Warning",
+        "FailedScheduling",
+        f"0/3 nodes are available: insufficient cpu. Pod {pod.name} cannot be scheduled.",
+        pod.name,
+        pod.namespace,
+    )
+
+    return {
+        "name": "Scenario 6: Pending Pod — Capacity Escalation",
+        "corner_case": (
+            "S09#4 / S02 — Pending pod with FailedScheduling 'insufficient cpu'. "
+            "Looks like a pod problem; is actually a cluster capacity problem."
+        ),
+        "naive_baseline": (
+            "A naive watchdog would call restart_pod — a no-op, since the pod was "
+            "never scheduled in the first place."
+        ),
+        "description": (
+            "A user-service pod is stuck Pending because the cluster has no spare "
+            "CPU. The agent has no tool that can create capacity, so it should "
+            "recognize its own limits and escalate to a human cleanly."
+        ),
+        "event": {
+            "pod_name": pod.name,
+            "namespace": pod.namespace,
+            "reason": "FailedScheduling",
+            "status": "Pending",
+            "message": (
+                f"Pod {pod.name} pending — 0/3 nodes available: insufficient cpu"
+            ),
+        },
+    }
+
+
 def scenario_systemic_failure(cluster: MockCluster) -> dict[str, Any]:
     """>50% of production pods unhealthy -> blast-radius guardrail triggers escalation."""
     prod_pods = [p for p in cluster.pods.values() if p.namespace == "production"]

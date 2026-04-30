@@ -7,7 +7,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$HERE"
 
-SCENARIOS=("oom" "crashloop" "imagepull")
+SCENARIOS=("oom" "crashloop" "imagepull" "pending")
 if [[ $# -gt 0 ]]; then
   SCENARIOS=("$@")
 fi
@@ -15,7 +15,7 @@ fi
 for s in "${SCENARIOS[@]}"; do
   f="${s}.yaml"
   if [[ ! -f "$f" ]]; then
-    echo "!! Unknown scenario: $s (expected one of oom, crashloop, imagepull)"
+    echo "!! Unknown scenario: $s (expected one of oom, crashloop, imagepull, pending)"
     exit 1
   fi
   echo "── Applying $f"
