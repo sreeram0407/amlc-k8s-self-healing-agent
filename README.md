@@ -204,7 +204,7 @@ action_params | guardrail_check | outcome | llm_reasoning | tokens_used | models
 ## Team
 
 Spring 2026 AMLC project, four students:
-- **S1** — GCP infrastructure: project, GKE cluster, IAM, RBAC, Secret Manager
-- **S2** — Agent code, K8s cluster adapter, Slack integration, Dockerfile, CronJob deploy
-- **S3** — SKILL runbook, model routing logic, escalation templates
-- **S4** — Demo workloads, integration testing, end-to-end harness
+- **Rahul** — GCP infrastructure: project, GKE cluster, IAM, RBAC, Secret Manager, OpenClaw
+- **Sreeram** — Agent code, K8s cluster adapter, Slack integration, Dockerfile, CronJob deploy
+- **Adit** — SKILL runbook, model routing logic, escalation templates
+- **Aman** — Demo workloads, integration testing, end-to-end harness
