@@ -203,7 +203,7 @@ action_params | guardrail_check | outcome | llm_reasoning | tokens_used | models
 
 ## Team
 
-Spring 2026 AMLC project, four students:
+Spring 2026 AMLC project:
 - **Rahul** — GCP infrastructure: project, GKE cluster, IAM, RBAC, Secret Manager, OpenClaw
 - **Sreeram** — Agent code, K8s cluster adapter, Slack integration, Dockerfile, CronJob deploy
 - **Adit** — SKILL runbook, model routing logic, escalation templates
