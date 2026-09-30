@@ -1,15 +1,18 @@
-# K8s Self-Healing Agent
+# Kubernetes Self-Healing Agent
 
 An autonomous Kubernetes reliability agent. When a pod fails, the agent investigates with read-only tools, diagnoses the root cause via Claude (with tool use), and either auto-remediates or escalates to a human via Slack and optional OpenClaw fanout — every action gated by deterministic guardrails and recorded to an audit log.
 
 Built for Columbia AMLC Spring 2026.
+
+**Explore:** [Offline demo](demo/run_demo.py) · [Deployment guide](DEPLOY.md) · [Guardrails](src/guardrails.py) · [My contribution](#team)
+
 
 ## Architecture
 
 ```
 ┌─────────────┐     ┌──────────────┐     ┌─────────────┐     ┌──────────────┐     ┌──────────┐
 │ K8s Cluster │ ──> │ Event Watcher│ ──> │ AI Agent    │ ──> │ MCP Tools    │ ──> │  Action  │
-│ (real GKE)  │     │ (poller, 5m) │     │ (Claude)    │     │ (9 tools)    │     │ remediate│
+│ (real GKE)  │     │ (poller, 5m) │     │ (Claude)    │     │ (10 tools)    │     │ remediate│
 └─────────────┘     └──────────────┘     └──────┬──────┘     └──────────────┘     │ or alert │
                                                 │                                  └────┬─────┘
                                                 v                                       │
@@ -30,7 +33,7 @@ The same agent code runs in two environments via dependency injection:
 | Module | Purpose |
 |---|---|
 | `src/agent.py` | Core agentic loop with multi-turn tool use, model routing, guardrail gating |
-| `src/mcp_server.py` | Tool definitions (9 tools) and dispatcher — Claude tool-use schema |
+| `src/mcp_server.py` | Tool definitions (10 tools) and dispatcher — Claude tool-use schema |
 | `src/guardrails.py` | Deterministic safety checks (rate limits, blast radius, memory cap, cooldown) |
 | `src/audit.py` | SQLite audit trail — every decision recorded with diagnosis and tokens |
 | `src/mock_cluster.py` | In-memory cluster for offline demo |
@@ -58,12 +61,16 @@ python demo/run_demo.py
 
 ## Demo Scenarios
 
-`demo/run_demo.py` walks through four scenarios end-to-end:
+The demo covers six failure scenarios using an in-memory cluster:
 
-1. **Simple Recovery** — `CrashLoopBackOff` with no recent deploy → agent restarts the pod.
-2. **Rollback Bad Deploy** — Broken image was just pushed → agent detects the correlation and rolls back.
-3. **Guardrail Escalation** — `OOMKilled` pod, agent tries to bump memory >2× original → guardrail blocks → escalate.
-4. **Systemic Failure** — >50% pods unhealthy in a namespace → blast-radius guardrail triggers immediate escalation.
+1. **Simple recovery:** restart a failed pod.
+2. **Bad deployment:** diagnose and roll back a deployment.
+3. **Resource guardrail:** escalate when a memory increase exceeds the configured limit.
+4. **Image-pull failure:** investigate an image problem and attempt rollback.
+5. **Pending capacity:** escalate a scheduling or capacity issue.
+6. **Systemic failure:** block remediation when the blast-radius threshold is exceeded.
+
+See [demo/scenarios.py](demo/scenarios.py) for the failure injections and expected behavior.
 
 ## Production Deployment (GKE)
 
@@ -91,7 +98,7 @@ See [`DEPLOY.md`](DEPLOY.md) for the full step-by-step (Workload Identity, Secre
 
 ## MCP Tools
 
-The agent has 9 tools split into read (unrestricted) and write (guardrail-gated):
+The agent exposes 10 tools: five investigation tools, four guardrail-gated remediation tools, and one human-escalation tool.
 
 **Read — investigation:**
 - `get_cluster_status` — overview of pods + deployments
